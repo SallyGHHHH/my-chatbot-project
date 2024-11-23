@@ -1,0 +1,81 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Analysis Platform</title>
+    <link rel="stylesheet" href="style.css"> <!-- Link to the external CSS file -->
+</head>
+<body>
+
+<header>
+    <div>Unified Analysis Platform</div>
+    <nav>
+        <a href="#">Home</a>
+        <a href="#">Features</a>
+        <a href="#">Help</a>
+        <a href="#">Login</a>
+    </nav>
+</header>
+
+<main>
+    <section class="input-section">
+        <textarea id="inputText" placeholder="Enter content to analyze..."></textarea>
+        <button onclick="analyzeContent()">Submit</button>
+        <small style="display: block; margin-top: 10px;">Example: "This is a test message containing xenophobic and fake news content."</small>
+    </section>
+    <section class="results-section">
+        <div class="result-card">
+            <h3>Xenophobic Language Detection</h3>
+            <p id="result1" class="loading">Results will appear here...</p>
+        </div>
+        <div class="result-card">
+            <h3>Fact Checking</h3>
+            <p id="result2" class="loading">Results will appear here...</p>
+        </div>
+        <div class="result-card">
+            <h3>Harmful Content Analysis</h3>
+            <p id="result3" class="loading">Results will appear here...</p>
+        </div>
+    </section>
+</main>
+
+<script>
+    async function analyzeContent() {
+        const inputText = document.getElementById('inputText').value;
+
+        // 表单验证
+        if (!inputText.trim()) {
+            alert('Please enter some text for analysis!');
+            return;
+        }
+
+        // 显示加载状态
+        document.getElementById('result1').textContent = 'Analyzing...';
+        document.getElementById('result2').textContent = 'Analyzing...';
+        document.getElementById('result3').textContent = 'Analyzing...';
+
+        try {
+            // 调用后端接口
+            const response = await fetch('http://localhost:3000/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: inputText }),
+            });
+
+            const data = await response.json();
+
+            // 更新结果
+            document.getElementById('result1').textContent = data.xenophobic || 'No result.';
+            document.getElementById('result2').textContent = data.factCheck || 'No result.';
+            document.getElementById('result3').textContent = data.harmfulContent || 'No result.';
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to analyze content. Please check your connection.');
+        }
+    }
+</script>
+
+</body>
+</html>
