@@ -1,12 +1,15 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
+const axios = require("axios");
+
+// 使用 dotenv 加载环境变量
+require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.json());
 
-// 提供静态文件（假设你的静态文件位于根目录，包含 index.html、style.css、scripts.js）
-app.use(express.static(path.join(__dirname)));  // `__dirname` 会指向当前目录，即 my-chatbot-project
+app.use(express.static(path.join(__dirname)));
 
 // 模拟三个API接口
 app.post("/api/xenophobic", (req, res) => {
@@ -15,9 +18,32 @@ app.post("/api/xenophobic", (req, res) => {
     res.json({ result: containsHate ? "Hateful content detected." : "No hateful content detected." });
 });
 
-app.post("/api/fact-check", (req, res) => {
+app.post("/api/fact-check", async (req, res) => {
     const text = req.body.input;
-    res.json({ result: `Fact-checking completed: "${text}" seems plausible.` });
+
+    try {
+        // 使用 axios 发送请求到 chatbot API
+        const response = await axios.post(
+            "https://api.openai.com/v1/completions",  // 替换为实际的 API URL
+            {
+                model: "gpt-3.5-turbo",  // 选择你使用的模型
+                prompt: text,
+                max_tokens: 100,
+                temperature: 0.7
+            },
+            {
+                headers: {
+                    "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`  // 从环境变量中读取 API 密钥
+                }
+            }
+        );
+
+        // 返回 chatbot API 的响应
+        res.json({ result: response.data.choices[0].text });
+    } catch (error) {
+        console.error("Error calling chatbot API:", error);
+        res.status(500).json({ result: "Error fetching response from chatbot API." });
+    }
 });
 
 app.post("/api/harmful-content", (req, res) => {
