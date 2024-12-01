@@ -3,7 +3,15 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const bodyParser = require('body-parser');
-require('dotenv').config();
+
+// 环境变量配置
+const PORT = 3000;
+const Xenophobic_MODEL_ID = "ft:gpt-3.5-turbo-0125:personal::AXirM1Dy";
+const Xenophobic_API_KEY = "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";
+const Fact_MODEL_ID = "ft:gpt-4o-mini-2024-07-18:personal::AXY9Wf7H";
+const Fact_API_KEY = "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";
+const Harmful_MODEL_ID = "ft:gpt-3.5-turbo-0125:personal::AY4mSLcp";
+const Harmful_API_KEY = "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";
 
 const app = express();
 app.use(bodyParser.json());
@@ -52,7 +60,7 @@ async function validateModels() {
     try {
         // 测试仇外语言检测模型
         try {
-            await callOpenAI(testText, process.env.Xenophobic_MODEL_ID, process.env.Xenophobic_API_KEY);
+            await callOpenAI(testText, Xenophobic_MODEL_ID, Xenophobic_API_KEY);
             modelStatus.xenophobic.status = true;
             console.log('Xenophobic model and API key validated');
         } catch (error) {
@@ -63,7 +71,7 @@ async function validateModels() {
 
         // 测试事实核查模型
         try {
-            await callOpenAI(testText, process.env.Fact_MODEL_ID, process.env.Fact_API_KEY);
+            await callOpenAI(testText, Fact_MODEL_ID, Fact_API_KEY);
             modelStatus.factCheck.status = true;
             console.log('Fact Check model and API key validated');
         } catch (error) {
@@ -74,7 +82,7 @@ async function validateModels() {
 
         // 测试有害内容分析模型
         try {
-            await callOpenAI(testText, process.env.Harmful_MODEL_ID, process.env.Harmful_API_KEY);
+            await callOpenAI(testText, Harmful_MODEL_ID, Harmful_API_KEY);
             modelStatus.harmful.status = true;
             console.log('Harmful Content model and API key validated');
         } catch (error) {
@@ -96,7 +104,7 @@ app.post("/api/xenophobic", async (req, res) => {
             return res.status(400).json({ error: "Input text is required" });
         }
 
-        const result = await callOpenAI(text, process.env.Xenophobic_MODEL_ID, process.env.Xenophobic_API_KEY);
+        const result = await callOpenAI(text, Xenophobic_MODEL_ID, Xenophobic_API_KEY);
         res.json({ result });
         console.log('Xenophobic Analysis Result:', result);
     } catch (error) {
@@ -114,7 +122,7 @@ app.post("/api/fact-check", async (req, res) => {
             return res.status(400).json({ error: "Input text is required" });
         }
 
-        const result = await callOpenAI(text, process.env.Fact_MODEL_ID, process.env.Fact_API_KEY);
+        const result = await callOpenAI(text, Fact_MODEL_ID, Fact_API_KEY);
         res.json({ result });
         console.log('Fact Check Result:', result);
     } catch (error) {
@@ -132,7 +140,7 @@ app.post("/api/harmful-content", async (req, res) => {
             return res.status(400).json({ error: "Input text is required" });
         }
 
-        const result = await callOpenAI(text, process.env.Harmful_MODEL_ID, process.env.Harmful_API_KEY);
+        const result = await callOpenAI(text, Harmful_MODEL_ID, Harmful_API_KEY);
         res.json({ result });
         console.log('Harmful Content Result:', result);
     } catch (error) {
@@ -159,7 +167,6 @@ app.get("/", (req, res) => {
 });
 
 // 启动服务器并验证模型
-const PORT = process.env.PORT;
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
     await validateModels();
