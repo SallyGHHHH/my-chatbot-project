@@ -1,61 +1,167 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const path = require("path");
-const axios = require("axios");
-
-// 使用 dotenv 加载环境变量
+// 导入所需模块
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.json());
-
 app.use(express.static(path.join(__dirname)));
 
-// 模拟三个API接口
-app.post("/api/xenophobic", (req, res) => {
-    const text = req.body.input;
-    const containsHate = text.includes("hate");
-    res.json({ result: containsHate ? "Hateful content detected." : "No hateful content detected." });
-});
+// 存储 API 状态
+let modelStatus = {
+    xenophobic: {
+        status: false,
+        description: "Detects and analyzes xenophobic language in text"
+    },
+    factCheck: {
+        status: false,
+        description: "Verifies factual accuracy of statements"
+    },
+    harmful: {
+        status: false,
+        description: "Identifies potentially harmful content"
+    }
+};
 
-app.post("/api/fact-check", async (req, res) => {
-    const text = req.body.input;
-
-    try {
-        // 使用 axios 发送请求到 chatbot API
-        const response = await axios.post(
-            "https://api.openai.com/v1/completions",  // 替换为实际的 API URL
-            {
-                model: "gpt-3.5-turbo",  // 选择你使用的模型
-                prompt: text,
-                max_tokens: 100,
-                temperature: 0.7
-            },
-            {
-                headers: {
-                    "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`  // 从环境变量中读取 API 密钥
-                }
+// OpenAI API 调用函数
+async function callOpenAI(text, modelId, apiKey) {
+    const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+            model: modelId,
+            messages: [{ role: "user", content: text }],
+            temperature: 0.7,
+            max_tokens: 500
+        },
+        {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
             }
-        );
+        }
+    );
+    return response.data.choices[0].message.content;
+}
 
-        // 返回 chatbot API 的响应
-        res.json({ result: response.data.choices[0].text });
+// 统一的 API 验证函数
+async function validateModels() {
+    const testText = "this is test";
+    
+    try {
+        // 测试仇外语言检测模型
+        try {
+            await callOpenAI(testText, process.env.Xenophobic_MODEL_ID, process.env.Xenophobic_API_KEY);
+            modelStatus.xenophobic.status = true;
+            console.log('Xenophobic model and API key validated');
+        } catch (error) {
+            modelStatus.xenophobic.status = false;
+            modelStatus.xenophobic.description = error.response?.data?.error?.message || error.message;
+            console.error('Xenophobic validation failed:', modelStatus.xenophobic.description);
+        }
+
+        // 测试事实核查模型
+        try {
+            await callOpenAI(testText, process.env.Fact_MODEL_ID, process.env.Fact_API_KEY);
+            modelStatus.factCheck.status = true;
+            console.log('Fact Check model and API key validated');
+        } catch (error) {
+            modelStatus.factCheck.status = false;
+            modelStatus.factCheck.description = error.response?.data?.error?.message || error.message;
+            console.error('Fact Check validation failed:', modelStatus.factCheck.description);
+        }
+
+        // 测试有害内容分析模型
+        try {
+            await callOpenAI(testText, process.env.Harmful_MODEL_ID, process.env.Harmful_API_KEY);
+            modelStatus.harmful.status = true;
+            console.log('Harmful Content model and API key validated');
+        } catch (error) {
+            modelStatus.harmful.status = false;
+            modelStatus.harmful.description = error.response?.data?.error?.message || error.message;
+            console.error('Harmful Content validation failed:', modelStatus.harmful.description);
+        }
+
     } catch (error) {
-        console.error("Error calling chatbot API:", error);
-        res.status(500).json({ result: "Error fetching response from chatbot API." });
+        console.error('Error during model validation:', error);
+    }
+}
+
+// 仇外语言检测API
+app.post("/api/xenophobic", async (req, res) => {
+    try {
+        const text = req.body.input;
+        if (!text) {
+            return res.status(400).json({ error: "Input text is required" });
+        }
+
+        const result = await callOpenAI(text, process.env.Xenophobic_MODEL_ID, process.env.Xenophobic_API_KEY);
+        res.json({ result });
+        console.log('Xenophobic Analysis Result:', result);
+    } catch (error) {
+        modelStatus.xenophobic.status = false;
+        console.error("Error calling OpenAI API:", error.response?.data?.error?.message || error.message);
+        res.status(500).json({ error: "Error analyzing content" });
     }
 });
 
-app.post("/api/harmful-content", (req, res) => {
-    const text = req.body.input;
-    const isHarmful = text.length > 50;
-    res.json({ result: isHarmful ? "Potential harmful content detected." : "Content appears safe." });
+// 事实核查API
+app.post("/api/fact-check", async (req, res) => {
+    try {
+        const text = req.body.input;
+        if (!text) {
+            return res.status(400).json({ error: "Input text is required" });
+        }
+
+        const result = await callOpenAI(text, process.env.Fact_MODEL_ID, process.env.Fact_API_KEY);
+        res.json({ result });
+        console.log('Fact Check Result:', result);
+    } catch (error) {
+        modelStatus.factCheck.status = false;
+        console.error("Error calling OpenAI API:", error.response?.data?.error?.message || error.message);
+        res.status(500).json({ error: "Error analyzing content" });
+    }
+});
+
+// 有害内容检测API
+app.post("/api/harmful-content", async (req, res) => {
+    try {
+        const text = req.body.input;
+        if (!text) {
+            return res.status(400).json({ error: "Input text is required" });
+        }
+
+        const result = await callOpenAI(text, process.env.Harmful_MODEL_ID, process.env.Harmful_API_KEY);
+        res.json({ result });
+        console.log('Harmful Content Result:', result);
+    } catch (error) {
+        modelStatus.harmful.status = false;
+        console.error("Error calling OpenAI API:", error.response?.data?.error?.message || error.message);
+        res.status(500).json({ error: "Error analyzing content" });
+    }
+});
+
+// 状态检查端点
+app.get("/api/status", (req, res) => {
+    res.json(modelStatus);
+});
+
+// 错误处理中间件
+app.use((err, req, res, next) => {
+    console.error('Server Error:', err);
+    res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // 根路径返回 index.html
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));  // 返回 index.html 文件
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// 启动服务器
-app.listen(3000, () => console.log("Server running on http://localhost:3000"));
+// 启动服务器并验证模型
+const PORT = process.env.PORT;
+app.listen(PORT, async () => {
+    console.log(`Server is running on port ${PORT}`);
+    await validateModels();
+    console.log('Initial model status:', modelStatus);
+});

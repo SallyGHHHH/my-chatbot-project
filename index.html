@@ -1,81 +1,184 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unified Analysis Platform</title>
-    <link rel="stylesheet" href="style.css"> <!-- Link to the external CSS file -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <header>
+        <div>Unified Analysis Platform</div>
+        <nav>
+            <a href="#" class="active">Home</a>
+            <a href="#">Features</a>
+            <a href="#">Help</a>
+            <a href="#">Login</a>
+        </nav>
+    </header>
 
-<header>
-    <div>Unified Analysis Platform</div>
-    <nav>
-        <a href="#">Home</a>
-        <a href="#">Features</a>
-        <a href="#">Help</a>
-        <a href="#">Login</a>
-    </nav>
-</header>
+    <main>
+        <section class="input-section">
+            <textarea id="inputText" placeholder="Enter content to analyze..."></textarea>
+            <button onclick="analyzeContent()" id="submitBtn">Analyze Content</button>
+        </section>
+        
+        <section class="response-section">
+            <div class="response-box">
+                <div class="response-content" id="responseContent">
+                    Enter your text above and click "Analyze Content" to start the analysis. The system will check for:
+                    • Xenophobic language in the text
+                    • Factual accuracy of statements
+                    • Potentially harmful content
+                    Example: "This is a test message to check for harmful or misleading content."
+                </div>
+            </div>
+        </section>
 
-<main>
-    <section class="input-section">
-        <textarea id="inputText" placeholder="Enter content to analyze..."></textarea>
-        <button onclick="analyzeContent()">Submit</button>
-        <small style="display: block; margin-top: 10px;">Example: "This is a test message containing xenophobic and fake news content."</small>
-    </section>
-    <section class="results-section">
-        <div class="result-card">
-            <h3>Xenophobic Language Detection</h3>
-            <p id="result1" class="loading">Results will appear here...</p>
-        </div>
-        <div class="result-card">
-            <h3>Fact Checking</h3>
-            <p id="result2" class="loading">Results will appear here...</p>
-        </div>
-        <div class="result-card">
-            <h3>Harmful Content Analysis</h3>
-            <p id="result3" class="loading">Results will appear here...</p>
-        </div>
-    </section>
-</main>
+        <section class="results-section">
+            <div class="result-cards">
+                <div class="result-card">
+                    <div class="card-header">
+                        <span class="status-dot" id="xenophobic-status"></span>
+                        <h3>Xenophobic Language</h3>
+                    </div>
+                    <div class="analysis-result" id="xenophobic-result">
+                        <p id="xenophobic-description">Loading model status...</p>
+                    </div>
+                </div>
+                <div class="result-card">
+                    <div class="card-header">
+                        <span class="status-dot" id="factCheck-status"></span>
+                        <h3>Fact Check</h3>
+                    </div>
+                    <div class="analysis-result" id="factCheck-result">
+                        <p id="factCheck-description">Loading model status...</p>
+                    </div>
+                </div>
+                <div class="result-card">
+                    <div class="card-header">
+                        <span class="status-dot" id="harmful-status"></span>
+                        <h3>Harmful Content</h3>
+                    </div>
+                    <div class="analysis-result" id="harmful-result">
+                        <p id="harmful-description">Loading model status...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 
-<script>
-    async function analyzeContent() {
-        const inputText = document.getElementById('inputText').value;
-
-        // 表单验证
-        if (!inputText.trim()) {
-            alert('Please enter some text for analysis!');
-            return;
+    <script>
+        // Check model status
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const modelStatus = await response.json();
+                
+                // Update each model's status and description
+                for (const [model, status] of Object.entries(modelStatus)) {
+                    const statusDot = document.getElementById(`${model}-status`);
+                    const description = document.getElementById(`${model}-description`);
+                    
+                    if (status.status) {
+                        statusDot.className = 'status-dot available';
+                    } else {
+                        statusDot.className = 'status-dot unavailable';
+                    }
+                    
+                    description.textContent = status.description;
+                }
+            } catch (error) {
+                console.error('Error checking model status:', error);
+            }
         }
 
-        // 显示加载状态
-        document.getElementById('result1').textContent = 'Analyzing...';
-        document.getElementById('result2').textContent = 'Analyzing...';
-        document.getElementById('result3').textContent = 'Analyzing...';
+        // Check model status when page loads
+        document.addEventListener('DOMContentLoaded', checkModelStatus);
 
-        try {
-            // 调用后端接口
-            const response = await fetch('http://localhost:3000/api/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: inputText }),
+        async function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            if (result.error) {
+                element.innerHTML = `<div class="error">${result.error}</div>`;
+            } else {
+                element.innerHTML = result.result;
+            }
+            element.classList.remove('loading');
+        }
+
+        async function analyzeContent() {
+            const textInput = document.getElementById('inputText').value.trim();
+            if (!textInput) {
+                alert('Please enter text to analyze');
+                return;
+            }
+
+            const button = document.getElementById('submitBtn');
+            const responseContent = document.getElementById('responseContent');
+            button.disabled = true;
+
+            // Update response box content
+            responseContent.textContent = 'Analyzing text, please wait...';
+
+            // Clear previous results and show loading animation
+            const resultElements = ['xenophobic-result', 'factCheck-result', 'harmful-result'];
+            resultElements.forEach(id => {
+                const element = document.getElementById(id);
+                element.innerHTML = '';
+                element.classList.add('loading');
             });
 
-            const data = await response.json();
+            try {
+                // Send all requests in parallel
+                const [xenophobicResponse, factCheckResponse, harmfulResponse] = await Promise.all([
+                    fetch('/api/xenophobic', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ input: textInput })
+                    }).then(res => res.json()),
+                    fetch('/api/fact-check', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ input: textInput })
+                    }).then(res => res.json()),
+                    fetch('/api/harmful-content', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ input: textInput })
+                    }).then(res => res.json())
+                ]);
 
-            // 更新结果
-            document.getElementById('result1').textContent = data.xenophobic || 'No result.';
-            document.getElementById('result2').textContent = data.factCheck || 'No result.';
-            document.getElementById('result3').textContent = data.harmfulContent || 'No result.';
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to analyze content. Please check your connection.');
+                // Process each response
+                await Promise.all([
+                    displayResult('xenophobic-result', xenophobicResponse),
+                    displayResult('factCheck-result', factCheckResponse),
+                    displayResult('harmful-result', harmfulResponse)
+                ]);
+
+                // Update response box with analysis summary
+                responseContent.textContent = `Analysis complete!\n\nInput text: "${textInput}"\n\nDetailed results are displayed below. You can review the analysis for each category.`;
+
+            } catch (error) {
+                console.error('Error:', error);
+                responseContent.textContent = 'An error occurred during analysis. Please try again later.';
+                
+                resultElements.forEach(id => {
+                    const element = document.getElementById(id);
+                    element.classList.remove('loading');
+                    element.innerHTML = '<div class="error">Analysis request failed</div>';
+                });
+            } finally {
+                button.disabled = false;
+                // Check model status after analysis is complete
+                await checkModelStatus();
+            }
         }
-    }
-</script>
-
+    </script>
 </body>
 </html>
